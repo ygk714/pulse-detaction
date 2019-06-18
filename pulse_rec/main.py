@@ -1,19 +1,17 @@
-#imports
+# imports
 import cv2
 import moviepy.editor as mved
 import pygame
-#from moviepy.editor import *
+# from moviepy.editor import *
 import moviepy.video.fx.crop as moviefxcrop
 import argparse
 import tracker_class
-
-
+import numpy as np
 
 # initialize the list of reference points and boolean indicating
 # whether cropping is being performed or not
 refPt = []
 cropping = False
-
 
 
 def click_and_crop(event, x, y, flags, param):
@@ -42,7 +40,7 @@ def click_and_crop(event, x, y, flags, param):
 
 
 vidcap = cv2.VideoCapture('IMG_8900.mp4')
-vidclip=mved.VideoFileClip('IMG_8900.mp4')
+vidclip = mved.VideoFileClip('IMG_8900.mp4')
 success, image = vidcap.read()
 count = 0
 success = True
@@ -55,8 +53,8 @@ args = vars(ap.parse_args())
 # load the image, clone it, and setup the mouse callback function
 image = cv2.imread("frame0.jpg")
 clone = image.copy()
-cv2.namedWindow("image",cv2.WINDOW_NORMAL)
-#cv2.namedWindow("image")
+cv2.namedWindow("image", cv2.WINDOW_NORMAL)
+# cv2.namedWindow("image")
 cv2.setMouseCallback("image", click_and_crop)
 
 # keep looping until the 'q' key is pressed
@@ -82,13 +80,43 @@ if len(refPt) == 2:
     # now we have 4 points we want to track in the time domain
     tracker_ls = tracker_class.create_4_trackers(x_1, x_2, y_1, y_2)
 
-    pygame.display.set_caption('forhead')
+    success, image1 = vidcap.read()
+    success, image2 = vidcap.read()
 
+    # now we save all the frames
+    avg1_array = []
+    avg2_array = []
+    avg3_array = []
 
+    curr_frame = []
+    nxt_frame = []
+    pos_frame = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
+    while True:
+        success, curr_frame = vidcap.read()
+        if success:
+            if (nxt_frame != []):
+                for t in tracker_ls:
+                    t.advance_by_frame(curr_frame, nxt_frame)
+                    nxt_frame = curr_frame
+                    # frames_array.append(nxt_frame)
+                    # cv2.imshow("image",curr_frame)
+                mask = tracker_class.Cut_frame_by_trackers(tracker_ls, curr_frame)
+                avg1_array.append(np.average(curr_frame[:, :, 1], weights=mask))
+                avg2_array.append(np.average(curr_frame[:, :, 2], weights=mask))
+                avg3_array.append(np.average(curr_frame[:, :, 3], weights=mask))
+            else:
+                nxt_frame = curr_frame
+            pos_frame = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
+        else:
+            break
+    height, width, layers = curr_frame.shape
+    size = (width, height)
+    out = cv2.VideoWriter("out.mp4", cv2.VideoWriter_fourcc(*'DIVX'), 0.5, size)
+    pygame.display.set_caption('forehead')
 
-    cut=moviefxcrop.crop(vidclip, x1=x_1,x2=x_2,y1=y_1,y2=y_2)
-    #cut.preview()
-    #cv2.waitKey(0)
+    cut = moviefxcrop.crop(vidclip, x1=x_1, x2=x_2, y1=y_1, y2=y_2)
+    # cut.preview()
+    # cv2.waitKey(0)
 
 
     pass
