@@ -64,6 +64,11 @@ def create_4_trackers(x_left, x_right, y_top, y_bottom):
 def Cut_frame_by_trackers(tracker_ls, frame):
     # This function get a list of 4 trackers and a frame and return the mask with 0 at any pixel
     # which isn't in the area defined by those pixels and 1 otherwise.
+
+    Get_min_mask_array_shape(tracker_ls)
+    t_ls = [tracker(), tracker(), tracker(), tracker()]
+    #todo
+
     mask1 = Get_Mask_frame_above_line(tracker_ls[0], tracker_ls[1], frame.shape[0:2])
     mask2 = Get_Mask_frame_above_line(tracker_ls[0], tracker_ls[2], frame.shape[0:2])
     mask3 = Get_Mask_frame_above_line(tracker_ls[1], tracker_ls[3], frame.shape[0:2])
@@ -72,7 +77,6 @@ def Cut_frame_by_trackers(tracker_ls, frame):
     # final_mask = mask1 & mask2 & !mask3 & !mask4
     final_mask = np.logical_and(np.logical_and(mask1, mask3), np.logical_not(np.logical_or(mask2, mask4)))
 
-    # frame[final_mask == 0] = 0
     return final_mask
 
 
@@ -96,16 +100,9 @@ def Get_Mask_frame_above_line(point1, point2, shape):
     return mask
 
 
-# def Setup_help_arrays(given_shape):
-#     global shape
-#     if shape == []:
-#         global x_array
-#         global y_.array
-#         x_array = np.zeros(given_shape)
-#         for i in range(given_shape[0]):
-#             x_array[:] = range(given_shape[1])
-#         y_array = np.zeros(given_shape)
-#         for i in range(given_shape[0]):
-#             y_array[i, :] = i
-#         shape = given_shape
-#     return
+def Get_min_mask_array_shape(tracker_ls):
+    min_x=min(tracker_ls[0].x,tracker_ls[1].x)
+    max_x=max(tracker_ls[2].x,tracker_ls[3].x)
+    min_y = min(tracker_ls[1].y, tracker_ls[3].y)
+    max_y = max(tracker_ls[0].y, tracker_ls[2].y)
+    return [min_x, max_x, min_y, max_y]
