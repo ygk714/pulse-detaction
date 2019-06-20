@@ -84,11 +84,11 @@ if len(refPt) == 2:
     success, image2 = vidcap.read()
 
     # now we save all the frames
-    avg1_array = []
-    avg2_array = []
-    avg3_array = []
+    R_mat = []
+    G_mat = []
+    B_mat = []
 
-    counter=0
+    counter = 0
 
     curr_frame = []
     nxt_frame = []
@@ -97,29 +97,36 @@ if len(refPt) == 2:
         success, curr_frame = vidcap.read()
         if success:
             if (nxt_frame != []):
+                R_mat_temp = []
+                G_mat_temp = []
+                B_mat_temp = []
                 for t in tracker_ls:
+                    tracker_area = t.Cut_frame_by_tracker(curr_frame)
+                    # OpenCV use BGR convention
+                    B_mat_temp.append(np.average(tracker_area[:, :, 0]))
+                    G_mat_temp.append(np.average(tracker_area[:, :, 1]))
+                    R_mat_temp.append(np.average(tracker_area[:, :, 2]))
                     t.advance_by_frame(curr_frame, nxt_frame)
-                    nxt_frame = curr_frame
-                    # frames_array.append(nxt_frame)
-                    # cv2.imshow("image",curr_frame)
-                mask = tracker_class.Cut_frame_by_trackers(tracker_ls, curr_frame)
-                mask=mask.astype(np.int)
-                avg1_array.append(np.average(curr_frame[:, :, 0], weights=mask))
-                avg2_array.append(np.average(curr_frame[:, :, 1], weights=mask))
-                avg3_array.append(np.average(curr_frame[:, :, 2], weights=mask))
-                counter+=1
+                B_mat.append(np.average(B_mat_temp))
+                G_mat.append(np.average(G_mat_temp))
+                R_mat.append(np.average(R_mat_temp))
+                nxt_frame = curr_frame
+
+                counter += 1
+                if counter%10==0:
+                    to_print = cv2.circle(nxt_frame, (tracker_ls[0].x, tracker_ls[0].y), 3, (0, 0, 0))
+                    to_print = cv2.circle(nxt_frame, (tracker_ls[1].x, tracker_ls[1].y), 3, (0, 0, 0))
+                    to_print = cv2.circle(nxt_frame, (tracker_ls[2].x, tracker_ls[2].y), 3, (0, 0, 0))
+                    to_print = cv2.circle(nxt_frame, (tracker_ls[3].x, tracker_ls[3].y), 3, (0, 0, 0))
+                    cv2.imwrite("markers%d.jpg" % counter, nxt_frame)  # save frame as JPEG file
+
                 print (counter)
             else:
                 nxt_frame = curr_frame
             pos_frame = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
         else:
             break
-    height, width, layers = curr_frame.shape
-    size = (width, height)
-    out = cv2.VideoWriter("out.mp4", cv2.VideoWriter_fourcc(*'DIVX'), 0.5, size)
-    pygame.display.set_caption('forehead')
 
-    cut = moviefxcrop.crop(vidclip, x1=x_1, x2=x_2, y1=y_1, y2=y_2)
     # cut.preview()
     # cv2.waitKey(0)
 
