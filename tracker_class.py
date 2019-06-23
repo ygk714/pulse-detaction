@@ -15,7 +15,7 @@ class tracker:
         self.x = 0
         self.y = 0
 
-    def advance_by_frame(self, curr_frame, nxt_frame, radios=5):
+    def advance_by_frame(self, curr_frame, nxt_frame, radios=1):
         # definitions
         corr = 0
         search_radios = 1
