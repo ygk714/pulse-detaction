@@ -15,7 +15,7 @@ class tracker:
         self.x = 0
         self.y = 0
 
-    def advance_by_frame(self, curr_frame, nxt_frame, radios=1):
+    def advance_by_frame(self, curr_frame, nxt_frame, radios=5):
         # definitions
         corr = 0
         search_radios = 1
@@ -44,8 +44,8 @@ class tracker:
             corr = np.divide(corr, (3 * 255 * 255))
             if np.amax(corr) >= 0.8:
                 break
-        if corr[search_radios,search_radios]==np.amax(corr):
-            coordinates=[[search_radios],[search_radios]]
+        if corr[search_radios-radios,search_radios-radios]==np.amax(corr):
+            coordinates=[[search_radios-radios],[search_radios-radios]]
         else:
             coordinates = np.where(corr == np.amax(corr))
         # coordinates = np.where(corr == np.amax(corr))
