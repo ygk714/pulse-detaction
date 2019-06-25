@@ -6,6 +6,7 @@ import pygame
 import moviepy.video.fx.crop as moviefxcrop
 import argparse
 import tracker_class
+import cam_shift
 import numpy as np
 
 # initialize the list of reference points and boolean indicating
@@ -78,7 +79,8 @@ if len(refPt) == 2:
     y_1 = min(refPt[0][1], refPt[1][1])
     y_2 = max(refPt[0][1], refPt[1][1])
     # now we have 4 points we want to track in the time domain
-    tracker_ls = tracker_class.create_4_trackers(x_1, x_2, y_1, y_2)
+    # tracker_ls = tracker_class.create_4_trackers(x_1, x_2, y_1, y_2)
+    roi = cam_shift.camshift(refPt[0][0], refPt[1][0], refPt[0][1], refPt[1][1], image)
 
     success, image1 = vidcap.read()
     success, image2 = vidcap.read()
@@ -91,33 +93,32 @@ if len(refPt) == 2:
     counter = 0
 
     curr_frame = []
+    curr_hist = None
     nxt_frame = []
+    nxt_hist = None
     pos_frame = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
+
     while True:
         success, curr_frame = vidcap.read()
+
+
         if success:
+            curr_hsv = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2HSV)
             if (nxt_frame != []):
                 R_mat_temp = []
                 G_mat_temp = []
                 B_mat_temp = []
-                for t in tracker_ls:
-                    tracker_area = t.Cut_frame_by_tracker(curr_frame)
-                    # OpenCV use BGR convention
-                    B_mat_temp.append(np.average(tracker_area[:, :, 0]))
-                    G_mat_temp.append(np.average(tracker_area[:, :, 1]))
-                    R_mat_temp.append(np.average(tracker_area[:, :, 2]))
-                    t.advance_by_frame(curr_frame, nxt_frame)
-                B_mat.append(np.average(B_mat_temp))
-                G_mat.append(np.average(G_mat_temp))
-                R_mat.append(np.average(R_mat_temp))
+
+                roi.advance_by_frame(curr_frame,nxt_frame)
                 nxt_frame = curr_frame
 
                 counter += 1
-                if counter%10==0:
-                    to_print = cv2.circle(nxt_frame, (tracker_ls[0].x, tracker_ls[0].y), 3, (0, 0, 0))
-                    to_print = cv2.circle(nxt_frame, (tracker_ls[1].x, tracker_ls[1].y), 3, (0, 0, 0))
-                    to_print = cv2.circle(nxt_frame, (tracker_ls[2].x, tracker_ls[2].y), 3, (0, 0, 0))
-                    to_print = cv2.circle(nxt_frame, (tracker_ls[3].x, tracker_ls[3].y), 3, (0, 0, 0))
+                if counter % 1 == 0:
+                    to_print = cv2.circle(nxt_frame, (roi.roi_box[0], roi.roi_box[2]), 3, (0, 255, 0))
+                    to_print = cv2.circle(nxt_frame, (roi.roi_box[0], roi.roi_box[3]), 3, (0, 255, 0))
+                    to_print = cv2.circle(nxt_frame, (roi.roi_box[1], roi.roi_box[2]), 3, (0, 255, 0))
+                    to_print = cv2.circle(nxt_frame, (roi.roi_box[1], roi.roi_box[3]), 3, (0, 255, 0))
+                    cv2.rectangle(to_print,(roi.roi_box[0],roi.roi_box[2]),(roi.roi_box[1],roi.roi_box[3]),(0,255,0),3)
                     cv2.imwrite("markers%d.jpg" % counter, nxt_frame)  # save frame as JPEG file
 
                 print (counter)
