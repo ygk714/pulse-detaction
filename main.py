@@ -1,136 +1,100 @@
-# imports
 import cv2
 import moviepy.editor as mved
 import pygame
-# from moviepy.editor import *
 import moviepy.video.fx.crop as moviefxcrop
-import argparse
-import tracker_class
 import numpy as np
-
-# initialize the list of reference points and boolean indicating
-# whether cropping is being performed or not
-refPt = []
-cropping = False
+from matplotlib import pyplot as plt
 
 
-def click_and_crop(event, x, y, flags, param):
-    # grab references to the global variables
-    global refPt, cropping
-
-    # if the left mouse button was clicked, record the starting
-    # (x, y) coordinates and indicate that cropping is being
-    # performed
-    if event == cv2.EVENT_LBUTTONDOWN:
-        refPt = [(x, y)]
-        cropping = True
-
-    # check to see if the left mouse button was released
-    elif event == cv2.EVENT_LBUTTONUP:
-        # record the ending (x, y) coordinates and indicate that
-        # the cropping operation is finished
-        refPt.append((x, y))
-        cropping = False
-
-        # draw a rectangle around the region of interest
-        cv2.rectangle(image, refPt[0], refPt[1], (0, 255, 0), 2)
-        cv2.imshow("image", image)
-
-        # construct the argument parser and parse the arguments
-
-
-vidcap = cv2.VideoCapture('IMG_8900.mp4')
-vidclip = mved.VideoFileClip('IMG_8900.mp4')
-success, image = vidcap.read()
-count = 0
-success = True
-cv2.imwrite("frame%d.jpg" % count, image)  # save frame as JPEG file
-success, image = vidcap.read()
-ap = argparse.ArgumentParser()
-ap.add_argument("-i", "--image", required=True, help="Capture.JPG")
-args = vars(ap.parse_args())
-
-# load the image, clone it, and setup the mouse callback function
-image = cv2.imread("frame0.jpg")
-clone = image.copy()
-cv2.namedWindow("image", cv2.WINDOW_NORMAL)
-# cv2.namedWindow("image")
-cv2.setMouseCallback("image", click_and_crop)
-
-# keep looping until the 'q' key is pressed
-while True:
-    cv2.imshow("image", image)
-    key = cv2.waitKey(0) & 0xFF
-
-    # if the 'r' key is pressed, reset the cropping region
-    if key == ord("r"):
-        image = clone.copy()
-
-    # if the 'c' key is pressed, break from the loop
-    elif key == ord("c"):
-        break
-
-# if there are two reference points, then crop the region of interest
-# from teh image and display it
-if len(refPt) == 2:
-    x_1 = min(refPt[0][0], refPt[1][0])
-    x_2 = max(refPt[0][0], refPt[1][0])
-    y_1 = min(refPt[0][1], refPt[1][1])
-    y_2 = max(refPt[0][1], refPt[1][1])
-    # now we have 4 points we want to track in the time domain
-    tracker_ls = tracker_class.create_4_trackers(x_1, x_2, y_1, y_2)
-
-    success, image1 = vidcap.read()
-    success, image2 = vidcap.read()
-
-    # now we save all the frames
+def main():
+    # Defining variables
     R_mat = []
     G_mat = []
     B_mat = []
-
-    counter = 0
-
+    prv_frame = []
+    prv_gray = []
+    p0 = []
     curr_frame = []
-    nxt_frame = []
+    curr_gray = []
+    mask = np.zeros_like(prv_frame)
+    color = np.random.randint(0, 255, (100, 3))
+
+
+
+    # Opening the input video
+    vidcap = cv2.VideoCapture('IMG_8900.mp4')
+
+    count = 0
     pos_frame = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
+    lk_params = dict(winSize=(15, 15),
+                     maxLevel=2,
+                     criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
     while True:
         success, curr_frame = vidcap.read()
         if success:
-            if (nxt_frame != []):
-                R_mat_temp = []
-                G_mat_temp = []
-                B_mat_temp = []
-                for t in tracker_ls:
-                    tracker_area = t.Cut_frame_by_tracker(curr_frame)
-                    # OpenCV use BGR convention
-                    B_mat_temp.append(np.average(tracker_area[:, :, 0]))
-                    G_mat_temp.append(np.average(tracker_area[:, :, 1]))
-                    R_mat_temp.append(np.average(tracker_area[:, :, 2]))
-                    t.advance_by_frame(curr_frame, nxt_frame)
-                B_mat.append(np.average(B_mat_temp))
-                G_mat.append(np.average(G_mat_temp))
-                R_mat.append(np.average(R_mat_temp))
-                nxt_frame = curr_frame
-
-                counter += 1
-                if counter%10==0:
-                    to_print = cv2.circle(nxt_frame, (tracker_ls[0].x, tracker_ls[0].y), 3, (0, 0, 0))
-                    to_print = cv2.circle(nxt_frame, (tracker_ls[1].x, tracker_ls[1].y), 3, (0, 0, 0))
-                    to_print = cv2.circle(nxt_frame, (tracker_ls[2].x, tracker_ls[2].y), 3, (0, 0, 0))
-                    to_print = cv2.circle(nxt_frame, (tracker_ls[3].x, tracker_ls[3].y), 3, (0, 0, 0))
-                    cv2.imwrite("markers%d.jpg" % counter, nxt_frame)  # save frame as JPEG file
-
-                print (counter)
+            curr_gray = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
+            if count == 0:  # Reading the first frame
+                # Get points to track
+                face_roi, forehead_roi = select_roi(curr_frame)
+                p0 = get_points_to_track(curr_gray,face_roi)
             else:
-                nxt_frame = curr_frame
-            pos_frame = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
+                # Track
+                p1, st, err = cv2.calcOpticalFlowPyrLK(prv_gray, curr_gray, p0, None, **lk_params)
+                # Print frame + markers (debug)
+                if count % 10 == 1:
+                    print_frame_with_trackers(p0, p1, st, count, prv_frame, color, mask)
+                # advance the points
+                p0 = (p1[st == 1]).reshape(-1, 1, 2)
+            prv_frame = curr_frame
+            prv_gray = curr_gray
+            count += 1
+            print (count)
         else:
             break
 
-    # cut.preview()
-    # cv2.waitKey(0)
+
+def get_points_to_track(first_frame_gray,face_roi):
+    feature_params = dict(maxCorners=100,
+                          qualityLevel=0.3,
+                          minDistance=7,
+                          blockSize=7)
+
+    roi_gray = first_frame_gray[face_roi[2]:face_roi[3],face_roi[0]:face_roi[1]]
+    # roi = first_frame[150:870, 1170:1670]
+
+    p0 = cv2.goodFeaturesToTrack(roi_gray, mask=None, **feature_params)
+    # normlize
+    for i in range(len(p0)):
+        p0[i][0][0] += face_roi[0]
+        p0[i][0][1] += face_roi[2]
+    return p0
 
 
-    pass
-# close all open windows
-cv2.destroyAllWindows()
+def print_frame_with_trackers(p0, p1, st, counter, prv_frame, color, mask):
+    for i, (new, old) in enumerate(zip(p1[st == 1], p0[st == 1])):
+        a, b = new.ravel()
+        c, d = old.ravel()
+        mask = cv2.line(mask, (a, b), (c, d), color[i].tolist(), 2)
+        prv_frame = cv2.circle(prv_frame, (a, b), 5, color[i].tolist(), -1)
+        cv2.imwrite("markers%d.jpg" % counter, prv_frame)  # save frame as JPEG file
+
+def select_roi(first_frame):
+    # The values are set to 'IMG_8900' values in the future define them differently
+    y_min = 150
+    y_max = 870
+    x_min = 1170
+    x_max = 1670
+    face_roi=[x_min,x_max,y_min,y_max]
+    y_min = 155
+    y_max = 220
+    x_min = 1225
+    x_max = 1540
+    forehead_roi = [x_min, x_max, y_min, y_max]
+    return face_roi,forehead_roi
+
+
+# def get_movment_from_trackers(p0,p1):
+#
+
+if __name__ == "__main__":
+    main()
