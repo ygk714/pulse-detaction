@@ -22,7 +22,7 @@ def main():
     color = np.random.randint(0, 255, (100, 3))
 
     # Opening the input video
-    vidcap = cv2.VideoCapture('IMG_8900.mp4')
+    vidcap = cv2.VideoCapture('Ronen.mp4')
 
     count = 0
     pos_frame = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
@@ -61,12 +61,12 @@ def main():
         else:
             break
 
-    print("Estimated heart rate is: %d [bpm]", get_estimated_heart_rate(22, 10, H_mat, count))
+    print("Estimated heart rate is: %d [bpm]" % (get_estimated_heart_rate(H_mat, count)))
     print "hello"
 
 
 def get_points_to_track(first_frame_gray, face_roi):
-    feature_params = dict(maxCorners=100,
+    feature_params = dict(maxCorners=10,
                           qualityLevel=0.3,
                           minDistance=7,
                           blockSize=7)
@@ -93,19 +93,7 @@ def print_frame_with_trackers(p0, p1, st, counter, prv_frame, color, mask, diffx
     cv2.imwrite("markers%d.jpg" % counter, prv_frame)  # save frame as JPEG file
 
 
-def select_roi(first_frame):
-    # The values are set to 'IMG_8900' values in the future define them differently
-    y_min = 150
-    y_max = 870
-    x_min = 1170
-    x_max = 1670
-    face_roi = [x_min, x_max, y_min, y_max]
-    y_min = 155
-    y_max = 220
-    x_min = 1225
-    x_max = 1540
-    forehead_roi = [x_min, x_max, y_min, y_max]
-    return face_roi, forehead_roi
+
 
 
 def get_movement_from_trackers(p0, p1):
@@ -147,13 +135,57 @@ def get_forehead_rgb_vectors(frame, roi_forehead, diff_x, diff_y):
     return r_avg, g_avg, b_avg
 
 
-def get_estimated_heart_rate(hf, lf, color_space, count):
+def get_estimated_heart_rate(color_space, count):
+    lf=np.round(count/60)
+    hf=4*lf+1
     fft_of_channel = abs(fft(color_space))  # get fft of channel
     fft_of_channel = fft_of_channel[lf:hf]  # cut out  unnecessary frequencies
     max_f = np.where(fft_of_channel == np.amax(fft_of_channel))[0][0] + lf  # find max normalized frequency
     est_heart_rate = max_f * 1800 / count
     return est_heart_rate
 
+
+def select_roi(first_frame):
+    # # The values are set to 'IMG_8900' values in the future define them differently
+    # # plt.imshow(first_frame)
+    # plt.show()
+    # y_min = 150
+    # y_max = 870
+    # x_min = 1170
+    # x_max = 1670
+    # face_roi = [x_min, x_max, y_min, y_max]
+    # y_min = 155
+    # y_max = 220
+    # x_min = 1225
+    # x_max = 1540
+    # forehead_roi = [x_min, x_max, y_min, y_max]
+    # # The values are set to 'IMG_8899' values in the future define them differently
+    # # plt.imshow(first_frame)
+    # plt.show()
+    # y_min = 85
+    # y_max = 934
+    # x_min = 1216
+    # x_max = 1689
+    # face_roi = [x_min, x_max, y_min, y_max]
+    # y_min = 135
+    # y_max = 212
+    # x_min = 1304
+    # x_max = 1576
+    # forehead_roi = [x_min, x_max, y_min, y_max]
+    # The values are set to 'Ronen' values in the future define them differently
+    # plt.imshow(first_frame)
+    plt.show()
+    y_min = 221
+    y_max = 500
+    x_min = 1250
+    x_max = 1428
+    face_roi = [x_min, x_max, y_min, y_max]
+    y_min = 242
+    y_max = 309
+    x_min = 1260
+    x_max = 1420
+    forehead_roi = [x_min, x_max, y_min, y_max]
+    return face_roi, forehead_roi
 
 if __name__ == "__main__":
     main()
