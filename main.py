@@ -23,7 +23,6 @@ def main():
 
     # Opening the input video
     vidcap = cv2.VideoCapture('Ronen.mp4')
-
     count = 0
     pos_frame = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
     lk_params = dict(winSize=(15, 15),
@@ -50,8 +49,8 @@ def main():
                 S_mat.append(s_avg)
                 I_mat.append(i_avg)
                 # Print frame + markers (debug)
-                # if count % 10 == 1:
-                #     print_frame_with_trackers(p0, p1, st, count, prv_frame, color, mask,diff_x,diff_y,forehead_roi)
+                if count % 10 == 1:
+                    print_frame_with_trackers(p0, p1, st, count, prv_frame, color, mask,diff_x,diff_y,forehead_roi)
                 # advance the trackers
                 p0 = (p1[st == 1]).reshape(-1, 1, 2)
             prv_frame = curr_frame
@@ -136,8 +135,8 @@ def get_forehead_rgb_vectors(frame, roi_forehead, diff_x, diff_y):
 
 
 def get_estimated_heart_rate(color_space, count):
-    lf=np.round(count/60)
-    hf=4*lf+1
+    lf=np.round(count/40)
+    hf=np.round(count/15)+1
     fft_of_channel = abs(fft(color_space))  # get fft of channel
     fft_of_channel = fft_of_channel[lf:hf]  # cut out  unnecessary frequencies
     max_f = np.where(fft_of_channel == np.amax(fft_of_channel))[0][0] + lf  # find max normalized frequency
@@ -146,6 +145,27 @@ def get_estimated_heart_rate(color_space, count):
 
 
 def select_roi(first_frame):
+    face_cas = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+    gray_frame = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
+    f = face_cas.detectMultiScale(gray_frame, 1.3, 5)
+    (x, y, w, h) = f[0]
+
+    y_min = int(y)
+    y_max = int(y+h)
+    x_min = int(x+0.17*w)
+    x_max = int(x+0.71*w)
+    face_roi = [x_min, x_max, y_min, y_max]
+    y_min = int(y+0.05*h)
+    y_max = int(y+0.2*h)
+    x_min = int(x+0.22*w)
+    x_max = int(x+0.68*w)
+    forehead_roi = [x_min, x_max, y_min, y_max]
+
+
+
+
+
+
     # # The values are set to 'IMG_8900' values in the future define them differently
     # # plt.imshow(first_frame)
     # plt.show()
@@ -174,17 +194,17 @@ def select_roi(first_frame):
     # forehead_roi = [x_min, x_max, y_min, y_max]
     # The values are set to 'Ronen' values in the future define them differently
     # plt.imshow(first_frame)
-    plt.show()
-    y_min = 221
-    y_max = 500
-    x_min = 1250
-    x_max = 1428
-    face_roi = [x_min, x_max, y_min, y_max]
-    y_min = 242
-    y_max = 309
-    x_min = 1260
-    x_max = 1420
-    forehead_roi = [x_min, x_max, y_min, y_max]
+    # plt.show()
+    # y_min = 221
+    # y_max = 500
+    # x_min = 1250
+    # x_max = 1428
+    # face_roi = [x_min, x_max, y_min, y_max]
+    # y_min = 242
+    # y_max = 309
+    # x_min = 1260
+    # x_max = 1420
+    # forehead_roi = [x_min, x_max, y_min, y_max]
     return face_roi, forehead_roi
 
 if __name__ == "__main__":
