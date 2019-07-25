@@ -22,7 +22,8 @@ def main():
     color = np.random.randint(0, 255, (100, 3))
 
     # Opening the input video
-    vidcap = cv2.VideoCapture('Ronen.mp4')
+    vid_name='Ronen.mp4'
+    vidcap = cv2.VideoCapture(vid_name)
     count = 0
     pos_frame = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
     lk_params = dict(winSize=(15, 15),
@@ -48,7 +49,7 @@ def main():
                 H_mat.append(h_avg)
                 S_mat.append(s_avg)
                 I_mat.append(i_avg)
-                # Print frame + markers (debug)
+                # # Print frame + markers (debug)
                 if count % 10 == 1:
                     print_frame_with_trackers(p0, p1, st, count, prv_frame, color, mask,diff_x,diff_y,forehead_roi)
                 # advance the trackers
@@ -59,8 +60,10 @@ def main():
             print (count)
         else:
             break
-
-    print("Estimated heart rate is: %d [bpm]" % (get_estimated_heart_rate(H_mat, count)))
+    est_hr=get_estimated_heart_rate(H_mat, count)
+    print("Estimated heart rate is: %d [bpm]" % est_hr)
+    vidcap.release()
+    print_hr_to_video(vid_name,'out.mp4',est_hr)
     print "hello"
 
 
@@ -160,52 +163,30 @@ def select_roi(first_frame):
     x_min = int(x+0.22*w)
     x_max = int(x+0.68*w)
     forehead_roi = [x_min, x_max, y_min, y_max]
-
-
-
-
-
-
-    # # The values are set to 'IMG_8900' values in the future define them differently
-    # # plt.imshow(first_frame)
-    # plt.show()
-    # y_min = 150
-    # y_max = 870
-    # x_min = 1170
-    # x_max = 1670
-    # face_roi = [x_min, x_max, y_min, y_max]
-    # y_min = 155
-    # y_max = 220
-    # x_min = 1225
-    # x_max = 1540
-    # forehead_roi = [x_min, x_max, y_min, y_max]
-    # # The values are set to 'IMG_8899' values in the future define them differently
-    # # plt.imshow(first_frame)
-    # plt.show()
-    # y_min = 85
-    # y_max = 934
-    # x_min = 1216
-    # x_max = 1689
-    # face_roi = [x_min, x_max, y_min, y_max]
-    # y_min = 135
-    # y_max = 212
-    # x_min = 1304
-    # x_max = 1576
-    # forehead_roi = [x_min, x_max, y_min, y_max]
-    # The values are set to 'Ronen' values in the future define them differently
-    # plt.imshow(first_frame)
-    # plt.show()
-    # y_min = 221
-    # y_max = 500
-    # x_min = 1250
-    # x_max = 1428
-    # face_roi = [x_min, x_max, y_min, y_max]
-    # y_min = 242
-    # y_max = 309
-    # x_min = 1260
-    # x_max = 1420
-    # forehead_roi = [x_min, x_max, y_min, y_max]
     return face_roi, forehead_roi
+
+
+def print_hr_to_video(input_vid_name,output_vid_name,hr):
+    vidcap = cv2.VideoCapture(input_vid_name)
+
+    frame_width = int(vidcap.get(3))
+    frame_height = int(vidcap.get(4))
+
+    font_size=int(min(frame_width,frame_height)/100)
+
+    out = cv2.VideoWriter('outpy.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 30, (frame_width, frame_height))
+
+    while True:
+        success, curr_frame = vidcap.read()
+        if success:
+            hr_box_len=min(int(curr_frame.shape[0] * 0.2), int(curr_frame.shape[1] * 0.2))
+            curr_frame=cv2.rectangle(curr_frame, (0,0),(hr_box_len,hr_box_len), (255, 255, 255), cv2.FILLED)
+            curr_frame = cv2.putText(curr_frame,str(hr),(int(hr_box_len*0.05),int(hr_box_len*0.8)),cv2.FONT_HERSHEY_PLAIN,font_size,(0,0,255),thickness=5)
+            out.write(curr_frame)
+        else:
+            break
+    vidcap.release()
+    out.release()
 
 if __name__ == "__main__":
     main()
