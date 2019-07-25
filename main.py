@@ -3,6 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.fftpack import fft
 
+window_size=240
 
 def main():
     # Defining variables
@@ -29,6 +30,7 @@ def main():
     lk_params = dict(winSize=(15, 15),
                      maxLevel=2,
                      criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+    hr_vec=[]
     while True:
         success, curr_frame = vidcap.read()
         if success:
@@ -50,8 +52,12 @@ def main():
                 S_mat.append(s_avg)
                 I_mat.append(i_avg)
                 # # Print frame + markers (debug)
-                if count % 10 == 1:
-                    print_frame_with_trackers(p0, p1, st, count, prv_frame, color, mask,diff_x,diff_y,forehead_roi)
+                # if count % 10 == 1:
+                #     print_frame_with_trackers(p0, p1, st, count, prv_frame, color, mask,diff_x,diff_y,forehead_roi)
+                if (count > window_size) & (count % 30 == 0):
+                    vec_2_calc=H_mat[count-window_size:count]
+                    est_hr_10_sec = get_estimated_heart_rate(vec_2_calc, window_size)
+                    hr_vec.append(est_hr_10_sec)
                 # advance the trackers
                 p0 = (p1[st == 1]).reshape(-1, 1, 2)
             prv_frame = curr_frame
@@ -59,11 +65,15 @@ def main():
             count += 1
             print (count)
         else:
+            if (count-1)%30!=0:
+                vec_2_calc = H_mat[count - window_size:count]
+                est_hr_10_sec = get_estimated_heart_rate(vec_2_calc, window_size)
+                hr_vec.append(est_hr_10_sec)
             break
     est_hr=get_estimated_heart_rate(H_mat, count)
     print("Estimated heart rate is: %d [bpm]" % est_hr)
     vidcap.release()
-    print_hr_to_video(vid_name,'out.mp4',est_hr)
+    print_hr_to_video(vid_name,'out.mp4',hr_vec)
     print "hello"
 
 
@@ -176,13 +186,16 @@ def print_hr_to_video(input_vid_name,output_vid_name,hr):
 
     out = cv2.VideoWriter('outpy.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 30, (frame_width, frame_height))
 
+    count=0
+
     while True:
         success, curr_frame = vidcap.read()
         if success:
             hr_box_len=min(int(curr_frame.shape[0] * 0.2), int(curr_frame.shape[1] * 0.2))
             curr_frame=cv2.rectangle(curr_frame, (0,0),(hr_box_len,hr_box_len), (255, 255, 255), cv2.FILLED)
-            curr_frame = cv2.putText(curr_frame,str(hr),(int(hr_box_len*0.05),int(hr_box_len*0.8)),cv2.FONT_HERSHEY_PLAIN,font_size,(0,0,255),thickness=5)
+            curr_frame = cv2.putText(curr_frame,str(hr[max((count-window_size)/30,0)]),(int(hr_box_len*0.05),int(hr_box_len*0.8)),cv2.FONT_HERSHEY_PLAIN,font_size,(0,0,255),thickness=5)
             out.write(curr_frame)
+            count+=1
         else:
             break
     vidcap.release()
