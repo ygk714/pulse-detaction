@@ -2,15 +2,26 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.fftpack import fft, ifft
+import argparse
 
 # Global variables
-window_size = 240
+window_size = 300
 lk_params = dict(winSize=(15, 15),
                  maxLevel=2,
                  criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
 
 
 def main():
+    # Parsing arguments
+    parser=argparse.ArgumentParser(description='Compute HR')
+    parser.add_argument('inputVid',help='Input Video Path', type=str)
+    parser.add_argument('outputVid',help='Output Video Path',type=str)
+    parser.add_argument('--WinLen',help='Window length',type=int)
+
+    args=parser.parse_args()
+    if args.WinLen!=None:
+        window_size=args.WinLen
+
     # Defining variables
     H_mat = []
     S_mat = []
@@ -27,10 +38,14 @@ def main():
     mask = np.zeros_like(prv_frame)
 
     # Opening the input video
-    vid_name = 'Ronen.mp4'
+    vid_name =args.inputVid
     vidcap = cv2.VideoCapture(vid_name)
     count = 0
     pos_frame = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
+
+    print('--HR Calculation--')
+    print('Received input video named: %s' % vid_name)
+    print('HR detection initiated')
 
     hr_vec = []
     while True:
@@ -62,19 +77,25 @@ def main():
             prv_frame = curr_frame
             prv_gray = curr_gray
             count += 1
-            print (count)
+            if count%60==0 and count%300!=0:
+                print ('-'),
+            if count%300==0:
+                print('%d [s]'%(count/30)),
         else:
             if (count - 1) % 30 != 0:
                 vec_2_calc = H_mat[count - window_size:count]
                 est_hr_10_sec = get_estimated_heart_rate(vec_2_calc, window_size)
                 hr_vec.append(est_hr_10_sec)
+                print('')
             break
+    print('HR detection completed')
     est_hr = get_estimated_heart_rate(H_mat, count)
     print("Estimated heart rate is: %d [bpm]" % est_hr)
     vidcap.release()
-    hr_vec_print=create_hr_signal(hr_vec,count)
-    print_hr_to_video(vid_name, 'outpy.avi', hr_vec, hr_vec_print, face_roi, forehead_roi, face_roi_orig)
-    print "hello"
+    hr_vec_print = create_hr_signal(hr_vec, count)
+    print('Working on output video')
+    print_hr_to_video(vid_name, args.outputVid, hr_vec, hr_vec_print, face_roi, forehead_roi, face_roi_orig,count)
+    print('Output video done')
 
 
 def get_points_to_track(first_frame_gray, face_roi):
@@ -121,10 +142,11 @@ def get_movement_from_trackers(p0, p1):
 def get_forehead_hsv_vectors(frame, roi_forehead, diff_x, diff_y):
     forehead = frame[roi_forehead[2] + diff_y:roi_forehead[3] + diff_y,
                roi_forehead[0] + diff_x:roi_forehead[1] + diff_x]
+    forehead_mask = get_bodyColor_mask(forehead, None)
     forehead = cv2.cvtColor(forehead, cv2.COLOR_BGR2HSV)
-    h_avg = np.average(forehead[:, :, 0])
-    s_avg = np.average(forehead[:, :, 1])
-    v_avg = np.average(forehead[:, :, 2])
+    h_avg = np.average(forehead[:, :, 0], weights=forehead_mask)
+    s_avg = np.average(forehead[:, :, 1], weights=forehead_mask)
+    v_avg = np.average(forehead[:, :, 2], weights=forehead_mask)
     return h_avg, s_avg, v_avg
 
 
@@ -149,6 +171,8 @@ def get_forehead_rgb_vectors(frame, roi_forehead, diff_x, diff_y):
 def get_estimated_heart_rate(color_space, count):
     lf = np.round(count / 40)
     hf = np.round(count / 15) + 1
+    # lf = np.round(count / 40) + 1
+    # hf = np.round(count / 10) + 1
     fft_of_channel = abs(fft(color_space))  # get fft of channel
     fft_of_channel = fft_of_channel[lf:hf]  # cut out  unnecessary frequencies
     max_f = np.where(fft_of_channel == np.amax(fft_of_channel))[0][0] + lf  # find max normalized frequency
@@ -182,7 +206,7 @@ def select_roi(first_frame):
     return face_roi, forehead_roi, face_roi_orig
 
 
-def print_hr_to_video(input_vid_name, output_vid_name, hr_print, hr_show, face_roi, forehead_roi, face_roi_orig):
+def print_hr_to_video(input_vid_name, output_vid_name, hr_print, hr_show, face_roi, forehead_roi, face_roi_orig,count_final):
     vidcap = cv2.VideoCapture(input_vid_name)
 
     frame_width = int(vidcap.get(3))
@@ -235,8 +259,10 @@ def print_hr_to_video(input_vid_name, output_vid_name, hr_print, hr_show, face_r
 
             out.write(curr_frame)
             count += 1
-            print(count)
+            if count%60==0:
+                print('%d %s' % ((int(count * 100 / count_final)),'%'))
         else:
+            print('100%')
             break
     vidcap.release()
     out.release()
@@ -248,52 +274,29 @@ def get_bodyColor_mask(frame, face_roi):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, lc, hc)
 
-    mask2 = np.zeros(mask.shape)
-    deltaX = face_roi[1] - face_roi[0]
-    mask2[:, face_roi[0] - deltaX * 2:face_roi[1] + deltaX * 2] = 255
-    mask = cv2.bitwise_and(mask, mask, mask=np.uint8(mask2))
+    if face_roi != None:
+        mask2 = np.zeros(mask.shape)
+        deltaX = face_roi[1] - face_roi[0]
+        mask2[:, face_roi[0] - deltaX * 2:face_roi[1] + deltaX * 2] = 255
+        mask = cv2.bitwise_and(mask, mask, mask=np.uint8(mask2))
     mask = mask / 255
     return mask
 
 
-# def create_hr_signal(hr_vec, count):
-#     hr_vec = np.multiply(hr_vec, window_size) / 1800
-#     res = np.zeros(count)
-#     lower_index = 0
-#     fft_array = np.zeros(window_size * 2)
-#     for i in range(len(hr_vec)):
-#         fft_array[int(hr_vec[i])] = 1
-#         if i == 0:
-#             res[0:window_size] = np.real(ifft(fft_array)[0:window_size])
-#             lower_index=window_size
-#         else:
-#             time_array=np.real(ifft(fft_array))
-#             start=0
-#             for j in range(len(time_array)):
-#                 if (res[lower_index] - 0.05) < time_array[j] < (res[lower_index] + 0.05):
-#                     start=j
-#                     break
-#
-#             #start=np.where(res[lower_index] - 0.05 < time_array < res[lower_index] +0.05)
-#             res[lower_index:lower_index+30]=time_array[start:start+30]
-#             lower_index+=30
-#         fft_array[int(hr_vec[i])] = 0
-#     return res
-
-
 def create_hr_signal(hr_vec, count):
     hr_vec = np.multiply(hr_vec, window_size) / 1800
-    phase=np.zeros(count)
+    phase = np.zeros(count)
     res = np.zeros(count)
-    help_idx=0
+    help_idx = 0
     for i in range(count):
-        if i!=0:
-            phase_v=np.float32(hr_vec[help_idx])/window_size
-            phase[i]=phase[i-1]+phase_v*2*np.pi
-            res[i]=np.cos(phase[i])
-            if i>window_size and i%30==0:
-                help_idx+=1
+        if i != 0:
+            phase_v = np.float32(hr_vec[help_idx]) / window_size
+            phase[i] = phase[i - 1] + phase_v * 2 * np.pi
+            res[i] = np.cos(phase[i])
+            if i > window_size and i % 30 == 0:
+                help_idx += 1
     return res
+
 
 if __name__ == "__main__":
     main()
