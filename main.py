@@ -71,11 +71,13 @@ def main():
                 H_mat.append(np.zeros(xParts*yParts))
                 S_mat.append(np.zeros(xParts*yParts))
                 I_mat.append(np.zeros(xParts*yParts))
+                if count==950:
+                    debug=1
                 for i in range(xParts):
                     for j in range(yParts):
-                        roi_frac=[forehead_roi[0]+i*(forehead_roi[1]-forehead_roi[0])/3,forehead_roi[1]-(2-i)*(forehead_roi[1]-forehead_roi[0])/3,
-                                  forehead_roi[2] + j * (forehead_roi[3] - forehead_roi[2]) / 2,
-                                  forehead_roi[3] - (1-j) * (forehead_roi[3] - forehead_roi[2]) / 2]
+                        roi_frac=[forehead_roi[0]+i*(forehead_roi[1]-forehead_roi[0])/xParts,forehead_roi[1]-(xParts-1-i)*(forehead_roi[1]-forehead_roi[0])/xParts,
+                                  forehead_roi[2] + j * (forehead_roi[3] - forehead_roi[2]) / yParts,
+                                  forehead_roi[3] - (yParts-1-j) * (forehead_roi[3] - forehead_roi[2]) / yParts]
                         h_avg, s_avg, i_avg = get_forehead_hsv_vectors(curr_frame, roi_frac, diff_x, diff_y)
                         H_mat[count-1][i+3*j]=h_avg
                         S_mat[count-1][i + 3 * j]=s_avg
@@ -156,9 +158,12 @@ def get_forehead_hsv_vectors(frame, roi_forehead, diff_x, diff_y):
                roi_forehead[0] + diff_x:roi_forehead[1] + diff_x]
     forehead_mask = get_bodyColor_mask(forehead, None)
     forehead = cv2.cvtColor(forehead, cv2.COLOR_BGR2HSV)
-    h_avg = np.average(forehead[:, :, 0], weights=forehead_mask)
-    s_avg = np.average(forehead[:, :, 1], weights=forehead_mask)
-    v_avg = np.average(forehead[:, :, 2], weights=forehead_mask)
+    if np.amax(forehead_mask)!=0:
+        h_avg = np.average(forehead[:, :, 0], weights=forehead_mask)
+        s_avg = np.average(forehead[:, :, 1], weights=forehead_mask)
+        v_avg = np.average(forehead[:, :, 2], weights=forehead_mask)
+    else:
+        h_avg=s_avg=v_avg=0
     return h_avg, s_avg, v_avg
 
 
@@ -196,11 +201,9 @@ def get_estimated_heart_rate(color_space, count):
         fft_of_channel = fft_of_channel[lf:hf]  # cut out  unnecessary frequencies
         max_f = np.where(fft_of_channel == np.amax(fft_of_channel))[0][0] + lf  # find max normalized frequency
         est_heart_rate.append(max_f * (60*fps) / count)
-    est_heart_rate=np.median(est_heart_rate)
-    # hr_vec_print = np.zeros(abs(fft(color_space)).shape)
-    # hr_vec_print[max_f] = np.amax(fft_of_channel)
-    # hr_vec_print = ifft(hr_vec_print)
-    # hr_vec_print = hr_vec_print / np.amax(hr_vec_print)
+
+    # est_heart_rate=np.median(est_heart_rate)
+    est_heart_rate=np.average(est_heart_rate)
 
     return est_heart_rate
 
@@ -240,43 +243,45 @@ def print_hr_to_video(input_vid_name, output_vid_name, hr_print, hr_show, face_r
     while True:
         success, curr_frame = vidcap.read()
         if success:
-            curr_gray = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
-            if count == 0:  # Reading the first frame
-                # Get points to track
-                p0 = get_points_to_track(curr_gray, face_roi)
-                first_p0 = p0
-                p1 = p0
-                st = np.uint8(np.ones(p0.shape[0]))
-                prv_gray = curr_gray
-                diff_y = 0
-                diff_x = 0
-            else:
-                # Track
-                p1, st, err = cv2.calcOpticalFlowPyrLK(prv_gray, curr_gray, p0, None, **lk_params)
-                prv_gray = curr_gray
-                # Find the difference in the roi
-                diff_x, diff_y = get_movement_from_trackers(first_p0, p1)
-            hr_box_len = min(int(curr_frame.shape[0] * 0.2), int(curr_frame.shape[1] * 0.2))
-            curr_frame = cv2.rectangle(curr_frame, (0, 0), (hr_box_len, hr_box_len), (255, 255, 255), cv2.FILLED)
-            curr_frame = cv2.putText(curr_frame, str(int(hr_print[max((count - window_size) / 30, 0)])),
-                                     (int(hr_box_len * 0.05), int(hr_box_len * 0.8)), cv2.FONT_HERSHEY_PLAIN, font_size,
-                                     (0, 0, 255), thickness=5)
+            if fps==60 and count%2==0:
 
-            mask = get_bodyColor_mask(curr_frame, face_roi_orig)
-            if count <= hr_show.shape[0] - 1:
-                mask = np.uint8(mask * (np.real(hr_show[count]) * 15))
-            else:
-                mask = np.uint8(mask * (np.real(hr_show[hr_show.shape[0] - 1]) * 15))
-            curr_frame[:, :, 0] += mask
+                curr_gray = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
+                if count == 0:  # Reading the first frame
+                    # Get points to track
+                    p0 = get_points_to_track(curr_gray, face_roi)
+                    first_p0 = p0
+                    p1 = p0
+                    st = np.uint8(np.ones(p0.shape[0]))
+                    prv_gray = curr_gray
+                    diff_y = 0
+                    diff_x = 0
+                else:
+                    # Track
+                    p1, st, err = cv2.calcOpticalFlowPyrLK(prv_gray, curr_gray, p0, None, **lk_params)
+                    prv_gray = curr_gray
+                    # Find the difference in the roi
+                    diff_x, diff_y = get_movement_from_trackers(first_p0, p1)
+                hr_box_len = min(int(curr_frame.shape[0] * 0.2), int(curr_frame.shape[1] * 0.2))
+                curr_frame = cv2.rectangle(curr_frame, (0, 0), (hr_box_len, hr_box_len), (255, 255, 255), cv2.FILLED)
+                curr_frame = cv2.putText(curr_frame, str(int(hr_print[max((count - window_size) / 30, 0)])),
+                                         (int(hr_box_len * 0.05), int(hr_box_len * 0.8)), cv2.FONT_HERSHEY_PLAIN, font_size,
+                                         (0, 0, 255), thickness=5)
 
-            print_frame_with_trackers(p0, p1, st, count, curr_frame, color, mask, diff_x, diff_y, forehead_roi,
-                                      face_roi_orig)
+                mask = get_bodyColor_mask(curr_frame, face_roi_orig)
+                if count <= hr_show.shape[0] - 1:
+                    mask = np.uint8(mask * (np.real(hr_show[count]) * 15))
+                else:
+                    mask = np.uint8(mask * (np.real(hr_show[hr_show.shape[0] - 1]) * 15))
+                curr_frame[:, :, 0] += mask
 
-            if count != 0:
-                # advance the trackers
-                p0 = (p1[st == 1]).reshape(-1, 1, 2)
+                print_frame_with_trackers(p0, p1, st, count, curr_frame, color, mask, diff_x, diff_y, forehead_roi,
+                                          face_roi_orig)
 
-            out.write(curr_frame)
+                if count != 0:
+                    # advance the trackers
+                    p0 = (p1[st == 1]).reshape(-1, 1, 2)
+
+                out.write(curr_frame)
             count += 1
             if count%60==0:
                 print('%d %s' % ((int(count * 100 / count_final)),'%'))
@@ -318,6 +323,8 @@ def create_hr_signal(hr_vec, count):
 
 
 def handle_arg(args):
+    global window_size
+    global fps
     if args.WinLen!=None:
         window_size=args.WinLen
     if args.fps != None:
