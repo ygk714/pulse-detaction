@@ -55,6 +55,7 @@ def main():
     while True:
         success, curr_frame = vidcap.read()
         if success:
+            curr_frame = cv2.resize(curr_frame, (1920, 1080))
             curr_gray = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
             if count == 0:  # Reading the first frame
                 # Get points to track
@@ -186,10 +187,11 @@ def get_forehead_rgb_vectors(frame, roi_forehead, diff_x, diff_y):
 
 
 def get_estimated_heart_rate(color_space, count):
-    lf = np.round(count / 40)
-    hf = np.round(count / 15) + 1
-    # lf = np.round(count / 40) + 1
-    # hf = np.round(count / 10) + 1
+    # lf = np.round(count / 40)
+    # hf = np.round(count / 15) + 1
+    global fps
+    lf = np.round(count / (4*(fps/3)))
+    hf = np.round(count / (fps/2)) + 1
     c=[]
     for i in range(len(color_space[0])):
         c.append(np.zeros(len(color_space)))
@@ -243,7 +245,7 @@ def print_hr_to_video(input_vid_name, output_vid_name, hr_print, hr_show, face_r
     while True:
         success, curr_frame = vidcap.read()
         if success:
-            if fps==60 and count%2==0:
+            if (fps==60 and count%2==0) or fps==30:
 
                 curr_gray = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
                 if count == 0:  # Reading the first frame
